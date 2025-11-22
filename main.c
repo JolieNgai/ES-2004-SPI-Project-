@@ -711,7 +711,7 @@ static int restore_flash_from_sd(const char *name) {
 // =====================================================
 // ===============  CSV PARSING & MATCHING ==============
 // =====================================================
-
+//structure of chip entry (variables matches csv file)
 typedef struct {
     char dev_name[32];
     uint8_t manf_id;
@@ -722,15 +722,15 @@ typedef struct {
     float erase_time_ms;     // ms
     float erase_time_ms_max; // ms
 } ChipEntry;
-
-#define MAX_CHIPS   1000
+//Set max amount of chips to load from database to 1000 (Can change if needed)
+#define MAX_CHIPS   1000 
 #define MAX_MATCHES 10
 
 static ChipEntry chip_data[MAX_CHIPS];
 static int chip_count = 0;
 
 /**
- * Parse one CSV line into ChipEntry.
+ * Parse one CSV line into ChipEntry. Reading from csv file and saving to local.
  * Returns 1 on success, 0 on failure (e.g. N/A fields, wrong format).
  */
 static int parse_chip_line(const char *line, ChipEntry *chip) {
@@ -749,8 +749,7 @@ static int parse_chip_line(const char *line, ChipEntry *chip) {
         &chip->erase_time_ms_max
     );
 
-    if (n != 9) {
-        // printf("WARN: bad CSV line (parsed %d fields): %s", n, line);
+    if (n != 9) { // if there is more or less than 9 fields (more/less than intended) system will not save that line.
         return 0;
     }
 
@@ -948,13 +947,13 @@ static void run_main_workflow(uint8_t manf_id,
         }
 
         if (batch_count == 0) break;
-        printf("\n%d entries loaded\n", batch_count);
+        printf("\n%d entries loaded\n", batch_count); //Print every batch
         chip_count += batch_count;
     }
 
-    printf("\nTotal entries loaded into local memory: %d\n", chip_count);
+    printf("\nTotal entries loaded into local memory: %d\n", chip_count); //Print total chips loaded
 
-    printf("\n--- First 5 entries in local ---\n");
+    printf("\n--- First 5 entries in local ---\n"); //Prints first 5 entries for user to check
     for (int i = 0; i < 5 && i < chip_count; i++) {
         ChipEntry *c = &chip_data[i];
 
