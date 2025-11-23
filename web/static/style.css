@@ -1,0 +1,248 @@
+/* Layout */
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: radial-gradient(circle at top, #222 0, #050505 55%);
+  color: #f5f5f5;
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 32px;
+}
+
+.header {
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+.header h1 {
+  margin: 0 0 6px;
+  font-size: 1.9rem;
+}
+
+.subtitle {
+  margin: 0;
+  color: #b0b0b0;
+  max-width: 720px;
+  font-size: 0.95rem;
+}
+
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.2fr);
+  gap: 20px;
+}
+
+/* Panels */
+
+.panel {
+  background: #101010;
+  border-radius: 14px;
+  padding: 18px 18px 20px;
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 1.2rem;
+}
+
+/* Actions section */
+
+.actions-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.action-card {
+  background: #151515;
+  border-radius: 12px;
+  padding: 14px 14px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
+}
+
+.action-card h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.action-card p {
+  margin: 0 0 10px;
+  color: #c0c0c0;
+  font-size: 0.9rem;
+}
+
+.action-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(100, 181, 246, 0.6);
+  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.7);
+}
+
+/* Buttons */
+
+.btn {
+  display: inline-block;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: #333;
+  color: #f5f5f5;
+  transition: background 0.15s ease, transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.btn:hover {
+  background: #444;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+}
+
+.btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.btn.primary {
+  background: #2196f3;
+  color: #fff;
+}
+
+.btn.primary:hover {
+  background: #42a5f5;
+}
+
+.btn.danger {
+  background: #e53935;
+  color: #fff;
+}
+
+.btn.danger:hover {
+  background: #ef5350;
+}
+
+.btn.ghost {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* Status + terminal */
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.status-label {
+  font-size: 0.9rem;
+  color: #d0d0d0;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.status-on {
+  background: #ffca28;
+  color: #000;
+}
+
+.status-off {
+  background: #2e7d32;
+  color: #fff;
+}
+
+.terminal {
+  margin-top: 8px;
+  width: 100%;
+  height: 340px;
+  white-space: pre-wrap;
+  background: #050505;
+  color: #c8ffb0;
+  padding: 10px;
+  border-radius: 10px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  font-family: "Fira Code", "Cascadia Code", Consolas, monospace;
+  font-size: 0.82rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* New: input row under terminal */
+.terminal-input-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-input-label {
+  font-size: 0.85rem;
+  color: #d0d0d0;
+  white-space: nowrap;
+}
+
+#terminalInput {
+  flex: 1;
+  padding: 6px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #111;
+  color: #f5f5f5;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+#terminalInput:focus {
+  border-color: #42a5f5;
+  box-shadow: 0 0 0 1px rgba(66, 165, 245, 0.4);
+}
+
+/* banner */
+
+.banner {
+  margin-top: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  border: 1px solid transparent;
+}
+
+.banner-hidden {
+  display: none;
+}
+
+.banner-info {
+  display: block;
+  background: rgba(33, 150, 243, 0.12);
+  border-color: rgba(33, 150, 243, 0.6);
+  color: #cbe7ff;
+}
+
+.banner-error {
+  display: block;
+  background: rgba(229, 57, 53, 0.12);
+  border-color: rgba(239, 83, 80, 0.8);
+  color: #ffcdd2;
+}
+
+@media (max-width: 900px) {
+  .main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

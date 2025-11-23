@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SPI Flash Forensic Web Console</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</head>
+<body>
+  <div class="page">
+    <header class="header">
+      <h1>SPI Flash Forensic Tool</h1>
+      <p class="subtitle">
+        Control your Pico workflow from the browser: run benchmarks, backup, restore,
+        and monitor terminal output in real time.
+      </p>
+      <div id="statusBanner" class="banner banner-hidden"></div>
+    </header>
+
+    <main class="main">
+      <!-- Left: actions -->
+      <section class="panel panel-actions">
+        <h2>Choose an operation</h2>
+        <div class="actions-grid">
+
+          <!-- Option 1 -->
+          <article class="action-card">
+            <h3>1. Run benchmark + CSV + identification</h3>
+            <p>
+              Profiles the connected SPI flash chip, runs timing benchmarks and
+              matches it against the on-SD CSV database. You can choose how many
+              top matches to display.
+            </p>
+            <button class="btn primary" id="btnRun">
+              Run benchmark workflow
+            </button>
+          </article>
+
+          <!-- Option 2 -->
+          <article class="action-card">
+            <h3>2. Backup SPI flash to SD (/FLASHIMG/*.fimg)</h3>
+            <p>
+              Creates a full FIMG backup of the SPI flash into the
+              <code>FLASHIMG</code> folder on the SD card
+              (e.g. <code>FLASHIMG/tXXXXXXXXXX_&lt;JEDEC&gt;.fimg</code>).
+            </p>
+            <button class="btn" id="btnBackup">
+              Backup to SD
+            </button>
+          </article>
+
+          <!-- Option 3 -->
+          <article class="action-card">
+            <h3>3. Restore SPI flash from SD (latest .fimg)</h3>
+            <p>
+              Restores the flash contents from the most recent
+              <code>.fimg</code> backup in the <code>/FLASHIMG</code> folder.
+              Equivalent to menu option <code>3</code>.
+            </p>
+            <button class="btn danger" id="btnRestoreLatest">
+              Restore latest .fimg
+            </button>
+          </article>
+
+
+          <!-- Option 4 -->
+          <article class="action-card">
+            <h3>4. Restore SPI flash from SD (choose specific file)</h3>
+            <p>
+              Shows available <code>.fimg</code> images, then lets you type the
+              exact filename or path (e.g. <code>FLASHIMG/mydump.fimg</code>)
+              to restore from. <code>4</code>.
+            </p>
+            <button class="btn danger" id="btnRestoreChoose">
+              Restore from specific image…
+            </button>
+          </article>
+
+          <!-- Option 5 -->
+          <article class="action-card">
+            <h3>5. List available flash images (.fimg)</h3>
+            <p>
+              Prints all <code>.fimg</code> backups found in the
+              <code>FLASHIMG</code> folder on SD into the terminal panel.
+              Equivalent to menu option <code>5</code>.
+            </p>
+            <button class="btn" id="btnListImages">
+              List FLASHIMG/*.fimg
+            </button>
+          </article>
+
+          <!-- Quit + Resume -->
+          <article class="action-card">
+            <h3>6. Quit (idle loop) / Return to main menu</h3>
+            <p>
+              Sends the quit command so the firmware enters its idle loop.
+              While idle, use “Return to main menu” to send <code>m</code>.
+            </p>
+            <button class="btn ghost" id="btnQuit">
+              Quit / Go idle
+            </button>
+            <button class="btn" id="btnResume" style="margin-left: 8px; margin-top: 6px;">
+              Return to main menu
+            </button>
+          </article>
+
+        </div>
+      </section>
+
+      <!-- Right: status + terminal -->
+      <section class="panel panel-terminal">
+        <div class="status-row">
+          <span class="status-label">Database:</span>
+          <span id="dbStatus" class="status-pill status-off">Idle</span>
+        </div>
+
+        <h2>Device terminal output</h2>
+        <div id="terminal" class="terminal">
+          (waiting for data...)
+        </div>
+
+        <div class="terminal-input-row">
+          <span class="terminal-input-label">Send raw line:</span>
+          <input
+            id="terminalInput"
+            type="text"
+            placeholder="Type a command or response (e.g. filename) and press Enter">
+        </div>
+      </section>
+
+    </main>
+  </div>
+</body>
+</html>
