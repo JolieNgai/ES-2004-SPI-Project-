@@ -512,12 +512,17 @@ static int choose_latest_image(char *out, size_t n) {
         if (!strstr(f.fname, ".fimg")) continue;
 
         bool newer = false;
+
+        // Compare FAT date/time stamps to find newest file 
+        //if current file has a later date, or the same date but later time mark it as the new "best"
         if (f.fdate || f.ftime) {
             if (f.fdate > best_date ||
                (f.fdate == best_date && f.ftime > best_time)) {
                 newer = true;
             }
         } else {
+            // If there is no valid timestamp, fall back to filename comparison
+            // (lexicographically larger name is treated as "newer")
             if (!best_path[0] || strcmp(f.fname, best_path) > 0) {
                 newer = true;
             }
@@ -618,6 +623,12 @@ static int restore_flash_from_sd(const char *name) {
         return -9;
     }
 
+    
+// Compare three CRCs:
+//  - h.crc32_all       : CRC stored in the header
+//  - crc_file_trailer  : CRC stored at the end of the file
+//  - crc_calc          : CRC recomputed from all image data we just read
+// If any mismatch, the .fimg image file is considered corrupted.
     if (crc_calc != crc_file_trailer || crc_calc != h.crc32_all) {
         printf("CRC mismatch in image (header/trailer vs recompute)\n");
         printf("  header   : 0x%08x\n", h.crc32_all);
@@ -685,6 +696,8 @@ static int restore_flash_from_sd(const char *name) {
     printf("\nProgramming done.\n");
 
     // ----- Final CRC over live flash -----
+    // compute CRC over live flash contents and compare with image CRC
+    // store in image header to confrim flash == image 
     uint32_t crc_flash = 0;
     int crc_rc = crc32_over_flash(h.image_size, h.chunk_size, &crc_flash);
     if (crc_rc != 0) {
@@ -779,19 +792,24 @@ static float score_entry(const ChipEntry* db,
     const float W_ERASE = 0.6f;
 
     float s = 0.0f;
-
+    // Compare JEDEC IDs between observed chip and DB entry
+    // Full match on (manf + 2x device bytes) gets a strong bonus
+    // partial match on manufacturer only gets a smaller bonus
     if (db->manf_id == obs_manf &&
         db->device_id[0] == obs_dev0 &&
         db->device_id[1] == obs_dev1) {
-        s += W_ID_MATCH_BONUS;
+        s += W_ID_MATCH_BONUS;          //best case: exact JEDEC match
     } else if (db->manf_id == obs_manf) {
-        s += W_ID_PARTIAL_BONUS;
+        s += W_ID_PARTIAL_BONUS;        //same vendor but different device ID
     }
 
     const double db_read_us  = db->read_time_us;
     const double db_prog_ms  = db->write_time_ms;
     const double db_erase_ms = db->erase_time_ms;
 
+    // Compare timing differences between observed and DB
+    // rel2() = squared relative error: ((obs - db) / db)^2
+    // Weighted sum of these errors becomes the score (lower = more similar)
     s += W_READ  * rel2((float)obs_read_us,  (float)db_read_us);
     s += W_PROG  * rel2((float)obs_prog_ms,  (float)db_prog_ms);
     s += W_ERASE * rel2((float)obs_erase_ms, (float)db_erase_ms);
@@ -812,6 +830,7 @@ static void print_match_summary(const ChipEntry* db,
     const ChipEntry* best = &db[r->index];
     printf("\n=== Most likely chip ===\n");
     printf("Name: %s\n", best->dev_name);
+    // compare JEDEC from DB vs observed chip
     printf("DB JEDEC: 0x%02X 0x%02X 0x%02X\n",
            best->manf_id, best->device_id[0], best->device_id[1]);
     printf("Obs JEDEC:0x%02X 0x%02X 0x%02X\n", manf, dev0, dev1);
@@ -821,6 +840,8 @@ static void print_match_summary(const ChipEntry* db,
     double db_prog_ms  = best->write_time_ms;
     double db_erase_ms = best->erase_time_ms;
 
+    // Compute percentage difference between observed timings (read_us, prog_ms, erase_ms) and database timings (db_read_us, db_prog_ms, db_erase_ms)
+    // Positive percentage = observed is slower, negative = observed is faster
     double rd_diff = (read_us  - db_read_us)  / (db_read_us  == 0 ? 1 : db_read_us)  * 100.0;
     double pr_diff = (prog_ms  - db_prog_ms)  / (db_prog_ms  == 0 ? 1 : db_prog_ms)  * 100.0;
     double er_diff = (erase_ms - db_erase_ms) / (db_erase_ms == 0 ? 1 : db_erase_ms) * 100.0;
@@ -1003,9 +1024,11 @@ static void run_main_workflow(uint8_t manf_id,
             float sc = score_entry(c,
                                    obs_manf, obs_dev0, obs_dev1,
                                    obs_read_us, obs_prog_ms, obs_erase_ms);
-
+            
+            //insert this emtry into topN list if its score is better (lower) than on of the current best[k].score values
             for (int k = 0; k < topN; k++) {
-                if (sc < best[k].score) {
+                if (sc < best[k].score) {       //compare scores to keep top N
+                    //move wworst score down the list
                     for (int m = topN - 1; m > k; m--) {
                         best[m] = best[m - 1];
                     }
@@ -1031,7 +1054,9 @@ static void run_main_workflow(uint8_t manf_id,
             double db_read_us  = c->read_time_us;
             double db_prog_ms  = c->write_time_ms;
             double db_erase_ms = c->erase_time_ms;
-
+            
+            // Compute percentage differences between observed timings and this DB row
+            // This shows how much faster/slower the observed chip is compared to DB
             double rd_diff = (obs_read_us  - db_read_us)  /
                              (db_read_us  == 0 ? 1 : db_read_us)  * 100.0;
             double pr_diff = (obs_prog_ms  - db_prog_ms)  /
@@ -1172,7 +1197,7 @@ int main(void) {
 
     while (true) {
         printf("\n=== MAIN MENU ===\n");
-        printf("  1 = Run benchmark + CSV + identification\n");
+        printf("  1 = Run benchmark + CSV + identification\n"); //comparision
         printf("  2 = Backup SPI flash to SD  (/FLASHIMG/*.fimg)\n");
         printf("  3 = Restore SPI flash from SD (latest .fimg)\n");
         printf("  4 = Restore SPI flash from SD (choose specific file)\n");
@@ -1191,7 +1216,7 @@ int main(void) {
         switch (ch) {
         case '1': {
             int topN = 3;
-            printf("\n[CSV MATCH] How many top matches to display? (1-10): ");
+            printf("\n[CSV MATCH] How many top matches to display? (1-10): "); // prompt user to input number of matches to show
             char line[8];
             read_line_blocking(line, sizeof(line));
             if (line[0] != '\0') {
