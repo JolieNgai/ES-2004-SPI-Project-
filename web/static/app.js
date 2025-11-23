@@ -1,13 +1,16 @@
+// Handle showing status/info/error messages in the blue banner at the top
 function showBanner(type, message) {
   const el = document.getElementById("statusBanner");
   if (!el) return;
-
+  
+  // Hide banner if message is empty
   if (!message) {
     el.className = "banner banner-hidden";
     el.textContent = "";
     return;
   }
-
+  
+  // Select banner style (info vs error)
   if (type === "error") {
     el.className = "banner banner-error";
   } else {
@@ -16,18 +19,24 @@ function showBanner(type, message) {
   el.textContent = message;
 }
 
+// let the user type the filename in the raw input
+let restorePending = false;
+
 // Send high-level commands (identify/backup/restore/quit/resume/etc.)
-async function sendCommand(action, topN) {
+async function sendCommand(action, topN, filename) {
   try {
     const body = { action };
     if (topN != null) {
       body.topN = topN;
     }
+    if (filename != null) {
+      body.filename = filename;
+    }
 
     const res = await fetch("/api/command", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
@@ -59,7 +68,7 @@ async function sendRawToDevice(text) {
     const res = await fetch("/api/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: text })
+      body: JSON.stringify({ data: text }),
     });
 
     if (!res.ok) {
@@ -105,71 +114,14 @@ async function runBenchmarkWorkflow() {
   await sendCommand("identify", topN);
 }
 
-async function restoreFromSpecificImage() {
-  const filename = prompt(
-    "Enter image path or filename inside FLASHIMG.\n\n" +
-    "Examples:\n" +
-    "  FLASHIMG/t0000001234_ef4018.fimg\n" +
-    "  t0000001234_ef4018.fimg"
-  );
-
-  if (filename === null) {
-    // cancelled
-    return;
-  }
-
-  const trimmed = filename.trim();
-  if (!trimmed) {
-    showBanner("error", "No filename entered; restore cancelled.");
-    return;
-  }
-
-  // First send menu option '4' so main.c enters the restore-by-name flow.
-  await sendCommand("restore_choose");
-
-  // Give Pico a brief moment to print the list and prompt, then send filename line.
-  setTimeout(() => {
-    sendRawToDevice(trimmed + "\n");
-  }, 400);
-
-  showBanner(
-    "info",
-    "Restore request sent. Watch the terminal for [RESTORE] messages."
-  );
-}
-
 
 // Restore from specific image (.fimg) – menu option 4
-async function restoreFromSpecificImage() {
-  const filename = prompt(
-    "Enter image path or filename inside FLASHIMG.\n\n" +
-    "Examples:\n" +
-    "  FLASHIMG/t0000001234_ef4018.fimg\n" +
-    "  t0000001234_ef4018.fimg"
-  );
-
-  if (filename === null) {
-    // cancelled
-    return;
-  }
-
-  const trimmed = filename.trim();
-  if (!trimmed) {
-    showBanner("error", "No filename entered; restore cancelled.");
-    return;
-  }
-
-  // First send menu option '4' so main.c enters the restore-by-name flow.
-  await sendCommand("restore_choose");
-
-  // Give Pico a brief moment to print the list and prompt, then send filename line.
-  setTimeout(() => {
-    sendRawToDevice(trimmed + "\n");
-  }, 400);
-
+function restoreFromSpecificImage() {
+  restorePending = true;
   showBanner(
     "info",
-    "Restore request sent. Watch the terminal for [RESTORE] messages."
+    "Option 4 armed. Now type the filename (e.g. FLASHIMG/xxx.fimg) " +
+      "in the 'Send raw line' box below and press Enter."
   );
 }
 
@@ -186,7 +138,7 @@ async function refreshLogs() {
       term.scrollTop + term.clientHeight >= term.scrollHeight - 5;
 
     term.textContent = data.lines.join("");
-
+    // Check whether user is currently scrolled to bottom
     if (isAtBottom) {
       term.scrollTop = term.scrollHeight;
     }
@@ -210,6 +162,7 @@ async function refreshLogs() {
   }
 }
 
+// Wire up all buttons and the raw-input text box once DOM is ready
 function setupHandlers() {
   const btnRun = document.getElementById("btnRun");
   if (btnRun) {
@@ -228,48 +181,70 @@ function setupHandlers() {
   const btnRestoreLatest = document.getElementById("btnRestoreLatest");
   if (btnRestoreLatest) {
     btnRestoreLatest.addEventListener("click", () => {
-      if (confirm("Restore from latest .fimg in /FLASHIMG? This will overwrite the flash.")) {
-        sendCommand("restore_latest");   // → menu option 3
+      if (
+        confirm(
+          "Restore from latest .fimg in /FLASHIMG? This will overwrite the flash."
+        )
+      ) {
+        sendCommand("restore_latest"); // maps to menu option 3
       }
     });
   }
 
+// Menu option 4 – will send "4\n" and instruct the user to type filename
   const btnRestoreChoose = document.getElementById("btnRestoreChoose");
   if (btnRestoreChoose) {
-    btnRestoreChoose.addEventListener("click", restoreFromSpecificImage); // → menu option 4
+    btnRestoreChoose.addEventListener("click", restoreFromSpecificImage); 
   }
 
   const btnListImages = document.getElementById("btnListImages");
   if (btnListImages) {
     btnListImages.addEventListener("click", () => {
-      sendCommand("list_images");        // → menu option 5
+      // Menu option 5
+      sendCommand("list_images");
     });
   }
 
-
   const btnQuit = document.getElementById("btnQuit");
-
+  if (btnQuit) {
+    btnQuit.addEventListener("click", () => {
+      // Idel loop
+      sendCommand("quit");
+    });
+  }
 
   const btnResume = document.getElementById("btnResume");
   if (btnResume) {
     btnResume.addEventListener("click", () => sendCommand("resume"));
   }
 
-  const input = document.getElementById("terminalInput");
-  if (input) {
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const value = input.value;
-        if (!value) return;
-        sendRawToDevice(value + "\n");
+const input = document.getElementById("terminalInput");
+if (input) {
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      let value = input.value.trim();
+      if (!value) return;
+
+      // If user types "1" here, treat it as "Run benchmark workflow"
+      if (value === "1") {
         input.value = "";
+        // This will show the popup and then call /api/command identify,
+        runBenchmarkWorkflow();
+        return;
       }
-    });
-  }
+
+      // All other inputs are sent raw to the device
+      sendRawToDevice(value + "\n");
+      input.value = "";
+    }
+  });
+}
+
+
 
   refreshLogs();
   setInterval(refreshLogs, 1000);
 }
-
+// Initialise handlers when the page has finished loading
 document.addEventListener("DOMContentLoaded", setupHandlers);

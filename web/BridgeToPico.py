@@ -86,7 +86,6 @@ def serial_reader(client):
 
 
 # ================= MAIN =================
-
 # Use Callback API version 2 to remove the deprecation warning
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 client.on_connect = on_connect

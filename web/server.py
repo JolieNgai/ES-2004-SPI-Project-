@@ -5,14 +5,15 @@ from flask import Flask, request, jsonify, render_template
 import paho.mqtt.client as mqtt
 
 # ---------- MQTT config ----------
-MQTT_HOST = "test.mosquitto.org"   # or "localhost" if you run your own broker
+MQTT_HOST = "test.mosquitto.org" 
 MQTT_PORT = 1883
-LOG_TOPIC = "pico/log"
-CMD_TOPIC = "pico/cmd"
+LOG_TOPIC = "pico/log" # Pico publishes stdout here
+CMD_TOPIC = "pico/cmd" # Web side publishes commands here
 
 # ---------- Flask app ----------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# Single-file Flask app: templates live in BASE_DIR, static 
 app = Flask(
     __name__,
     static_folder=os.path.join(BASE_DIR, "static"),
@@ -44,7 +45,7 @@ def on_message(client, userdata, msg):
     if "Total entries loaded into local memory" in line or "Integration complete." in line:
         db_loading = False
 
-
+# Register MQTT callbacks and start the loop in a background thread
 mqtt_client.on_connect = on_connect
 mqtt_client.on_message = on_message
 mqtt_client.connect(MQTT_HOST, MQTT_PORT, 60)
@@ -78,18 +79,15 @@ def api_command():
       4 = Restore SPI flash from SD (choose specific file)
       5 = List available flash images (.fimg)
       q = Quit (idle loop), m = return to menu in idle mode
+      r = Resume from idle Loop to main menu
     """
     data = request.get_json(force=True)
     action = data.get("action")
     topN = data.get("topN")
+    filename = data.get("filename") 
 
     if action == "identify":
         # Option 1: Run benchmark + CSV + identification
-        # We send '1' to select menu option, then the user-specified
-        # topN as a line (e.g., "3\n") to answer the prompt in main.c.
-        #
-        # To make this robust, we send "1<topN>\\n" so the firmware
-        # sees '1' as the menu choice and "<topN>\\n" as the next line.
         if topN is not None:
             try:
                 topN = int(topN)
@@ -111,20 +109,27 @@ def api_command():
         payload = "3"
 
     elif action == "restore_choose":
-        # Menu option 4: restore from a specific .fimg filename
-        payload = "4"
+        # Menu option 4: restore from a specific .fimg after entering filename
+        if filename:
+            safe = str(filename).strip()
+            if not safe:
+                return jsonify({"ok": False, "error": "empty filename"}), 400
+            payload = f"4{safe}\n"
+        else:
+            # Fallback if no filename supplied (not used by web UI)
+            payload = "4"
 
     elif action == "list_images":
         # Menu option 5: list available .fimg images on SD
-        payload = "5"
+        payload = "5\n"
 
     elif action == "quit":
         # q = Quit (idle loop)
         payload = "q"
 
     elif action == "resume":
-        # 'm' in idle loop returns to main menu
-        payload = "m"
+        # 'r' in idle loop returns to main menu
+        payload = "r"
 
     else:
         return jsonify({"ok": False, "error": "unknown action"}), 400
