@@ -856,7 +856,8 @@ static void print_match_summary(const ChipEntry* db,
 }
 
 // ====================== BENCHMARK + CSV WORKFLOW ======================
-
+// This function performs the main benchmarking
+// and then runs CSV matching for forensic identification of flash chips
 static void run_main_workflow(uint8_t manf_id,
                               uint8_t mem_type,
                               uint8_t capacity_code,
@@ -867,16 +868,21 @@ static void run_main_workflow(uint8_t manf_id,
     uint8_t page_buf[FLASH_PAGE_SIZE];
     for (int i = 0; i < FLASH_PAGE_SIZE; i++) page_buf[i] = i;
 
-    #define ERASE_TRIALS 30
-    #define PROG_TRIALS  30
+    // 30 trials for erase and program
+    #define ERASE_TRIALS 30 
+    #define PROG_TRIALS  30 
+    // 100 trials for read
     #define READ_TRIALS  100
 
+    // variables to check total, minimum, maximum timing value
     uint64_t start, end;
     double erase_total_us = 0, erase_min_us = 1e12, erase_max_us = 0;
     double prog_total_us  = 0, prog_min_us  = 1e12, prog_max_us  = 0;
     double read_total_us  = 0, read_min_us  = 1e12, read_max_us  = 0;
 
+    // ==================== ERASE BENCHMARK ====================
     // Erase trials
+    // measure how long a sector erase tables, repeated 30x
     for (int i = 0; i < ERASE_TRIALS; i++) {
         start = time_us_64();
         flash_dut_erase_4k(target_addr);
@@ -887,6 +893,8 @@ static void run_main_workflow(uint8_t manf_id,
         if (elapsed > erase_max_us) erase_max_us = elapsed;
     }
 
+    // ==================== PROGRAM BENCHMARK ====================
+    // writes one page (256 bytes) at target_addr, repeated 30x to measure program time
     // Program trials
     for (int i = 0; i < PROG_TRIALS; i++) {
         start = time_us_64();
@@ -898,6 +906,8 @@ static void run_main_workflow(uint8_t manf_id,
         if (elapsed > prog_max_us) prog_max_us = elapsed;
     }
 
+    // ==================== READ BENCHMARK ====================
+    // reads one page (256 bytes) at target_addr, repeated 100x to measure read time
     // Read trials
     for (int i = 0; i < READ_TRIALS; i++) {
         start = time_us_64();
@@ -909,18 +919,20 @@ static void run_main_workflow(uint8_t manf_id,
         if (elapsed > read_max_us) read_max_us = elapsed;
     }
 
+    // Calculate average times for each operation
     double erase_avg_us = erase_total_us / ERASE_TRIALS;
     double prog_avg_us  = prog_total_us  / PROG_TRIALS;
     double read_avg_us  = read_total_us  / READ_TRIALS;
 
+    // Convert to milliseconds for easier comparison with datasheet specs
     double erase_min_ms = erase_min_us / 1000.0;
     double erase_max_ms = erase_max_us / 1000.0;
     double erase_avg_ms = erase_avg_us / 1000.0;
-
     double prog_min_ms  = prog_min_us  / 1000.0;
     double prog_max_ms  = prog_max_us  / 1000.0;
     double prog_avg_ms  = prog_avg_us  / 1000.0;
 
+    // Display the summary table for erase, program, and read operations
     printf("\n================ Benchmark Summary ================\n");
     printf("Operation       |    Min       |    Max       |    Avg\n");
     printf("--------------------------------------------------------\n");
@@ -1012,6 +1024,8 @@ static void run_main_workflow(uint8_t manf_id,
             best[i].score = INFINITY;
         }
 
+        // Compare this chip's data against all known chips in the CSV
+        // and keep the top N closest matches.
         for (int i = 0; i < chip_count; i++) {
             const ChipEntry *c = &chip_data[i];
 
@@ -1038,7 +1052,7 @@ static void run_main_workflow(uint8_t manf_id,
                 }
             }
         }
-
+        // Display matching results with performance comparison
         printf("\n================= TOP %d MATCHES FROM CSV =================\n", topN);
         printf("Observed JEDEC: 0x%02X 0x%02X 0x%02X\n",
                obs_manf, obs_dev0, obs_dev1);
@@ -1046,6 +1060,7 @@ static void run_main_workflow(uint8_t manf_id,
                obs_read_us, obs_prog_ms, obs_erase_ms);
         printf("==========================================================\n");
 
+        // Print top N matches
         for (int k = 0; k < topN; k++) {
             if (best[k].index < 0) continue;
 
