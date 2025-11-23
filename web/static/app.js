@@ -2,15 +2,13 @@
 function showBanner(type, message) {
   const el = document.getElementById("statusBanner");
   if (!el) return;
-  
-  // Hide banner if message is empty
+
   if (!message) {
     el.className = "banner banner-hidden";
     el.textContent = "";
     return;
   }
-  
-  // Select banner style (info vs error)
+
   if (type === "error") {
     el.className = "banner banner-error";
   } else {
@@ -19,18 +17,18 @@ function showBanner(type, message) {
   el.textContent = message;
 }
 
-// let the user type the filename in the raw input
+// Track whether we're waiting for a filename for menu option 4
 let restorePending = false;
 
-// Send high-level commands (identify/backup/restore/quit/resume/etc.)
-async function sendCommand(action, topN, filename) {
+
+// High-level commands (mapped in server.py -> MQTT -> Pico menu)
+// identify, backup, restore (latest), quit, resume
+
+async function sendCommand(action, topN) {
   try {
     const body = { action };
     if (topN != null) {
       body.topN = topN;
-    }
-    if (filename != null) {
-      body.filename = filename;
     }
 
     const res = await fetch("/api/command", {
@@ -40,19 +38,13 @@ async function sendCommand(action, topN, filename) {
     });
 
     if (!res.ok) {
-      showBanner(
-        "error",
-        `Server error (${res.status}) while sending '${action}'.`
-      );
+      showBanner("error", `Server error (${res.status}) while sending '${action}'.`);
       return;
     }
 
     const data = await res.json();
     if (!data.ok) {
-      showBanner(
-        "error",
-        `Device rejected '${action}': ${data.error || "unknown error"}.`
-      );
+      showBanner("error", `Device rejected '${action}': ${data.error || "unknown error"}.`);
     } else {
       showBanner("info", `Command '${action}' sent successfully.`);
     }
@@ -62,7 +54,7 @@ async function sendCommand(action, topN, filename) {
   }
 }
 
-// Send raw text to the device (for the input box)
+// Send raw text directly to the Pico via MQTT
 async function sendRawToDevice(text) {
   try {
     const res = await fetch("/api/send", {
@@ -72,19 +64,13 @@ async function sendRawToDevice(text) {
     });
 
     if (!res.ok) {
-      showBanner(
-        "error",
-        `Server error (${res.status}) while sending raw data.`
-      );
+      showBanner("error", `Server error (${res.status}) while sending raw data.`);
       return;
     }
 
     const data = await res.json();
     if (!data.ok) {
-      showBanner(
-        "error",
-        `Raw send failed: ${data.error || "unknown error"}.`
-      );
+      showBanner("error", `Raw send failed: ${data.error || "unknown error"}.`);
     } else {
       showBanner("info", "Line sent to device.");
     }
@@ -94,7 +80,7 @@ async function sendRawToDevice(text) {
   }
 }
 
-// When user clicks "Run benchmark workflow" (menu option 1)
+// Menu option 1: Run benchmark + CSV + identification
 async function runBenchmarkWorkflow() {
   let topN = prompt(
     "[CSV MATCH] How many top matches to display? (1-10, Enter for 3):",
@@ -115,17 +101,21 @@ async function runBenchmarkWorkflow() {
 }
 
 
-// Restore from specific image (.fimg) – menu option 4
+// Menu option 4: Restore from specific .fimg image
 function restoreFromSpecificImage() {
+  // Enter option 4 in the Pico menu (no '\n'!)
+  sendRawToDevice("4");
   restorePending = true;
+
   showBanner(
     "info",
-    "Option 4 armed. Now type the filename (e.g. FLASHIMG/xxx.fimg) " +
-      "in the 'Send raw line' box below and press Enter."
+    "Option 4 selected. When you see the [RESTORE] list, type the image path " +
+      "(e.g. FLASHIMG/xxx.fimg) into 'Send raw line' and press Enter."
   );
 }
 
-// Poll logs and update terminal
+
+// Poll logs from /api/logs and update the terminal + DB status pill
 async function refreshLogs() {
   try {
     const res = await fetch("/api/logs");
@@ -134,14 +124,7 @@ async function refreshLogs() {
     const term = document.getElementById("terminal");
     if (!term) return;
 
-    const isAtBottom =
-      term.scrollTop + term.clientHeight >= term.scrollHeight - 5;
-
     term.textContent = data.lines.join("");
-    // Check whether user is currently scrolled to bottom
-    if (isAtBottom) {
-      term.scrollTop = term.scrollHeight;
-    }
 
     const db = document.getElementById("dbStatus");
     if (db) {
@@ -162,8 +145,10 @@ async function refreshLogs() {
   }
 }
 
-// Wire up all buttons and the raw-input text box once DOM is ready
+
+// Wire up buttons and raw input box
 function setupHandlers() {
+  // Left-side operation buttons
   const btnRun = document.getElementById("btnRun");
   if (btnRun) {
     btnRun.addEventListener("click", runBenchmarkWorkflow);
@@ -173,7 +158,7 @@ function setupHandlers() {
   if (btnBackup) {
     btnBackup.addEventListener("click", () => {
       if (confirm("Backup SPI flash to SD? This may take a while.")) {
-        sendCommand("backup");
+        sendCommand("backup"); // menu option 2
       }
     });
   }
@@ -186,29 +171,27 @@ function setupHandlers() {
           "Restore from latest .fimg in /FLASHIMG? This will overwrite the flash."
         )
       ) {
-        sendCommand("restore_latest"); // maps to menu option 3
+        sendCommand("restore"); // menu option 3 (latest .fimg)
       }
     });
   }
 
-// Menu option 4 – will send "4\n" and instruct the user to type filename
   const btnRestoreChoose = document.getElementById("btnRestoreChoose");
   if (btnRestoreChoose) {
-    btnRestoreChoose.addEventListener("click", restoreFromSpecificImage); 
+    btnRestoreChoose.addEventListener("click", restoreFromSpecificImage);
   }
 
   const btnListImages = document.getElementById("btnListImages");
   if (btnListImages) {
     btnListImages.addEventListener("click", () => {
-      // Menu option 5
-      sendCommand("list_images");
+      // No dedicated server action; just send raw menu option 5 + newline.
+      sendRawToDevice("5\n");
     });
   }
 
   const btnQuit = document.getElementById("btnQuit");
   if (btnQuit) {
     btnQuit.addEventListener("click", () => {
-      // Idel loop
       sendCommand("quit");
     });
   }
@@ -218,33 +201,52 @@ function setupHandlers() {
     btnResume.addEventListener("click", () => sendCommand("resume"));
   }
 
-const input = document.getElementById("terminalInput");
-if (input) {
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      let value = input.value.trim();
-      if (!value) return;
+  // Raw input text box at the bottom of the terminal
+  const input = document.getElementById("terminalInput");
+  if (input) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        let value = input.value.trim();
+        if (!value) return;
 
-      // If user types "1" here, treat it as "Run benchmark workflow"
-      if (value === "1") {
+        // If we are waiting for filename for option 4, treat this as filename
+        if (restorePending) {
+          restorePending = false;
+          sendRawToDevice(value + "\n");
+          input.value = "";
+          return;
+        }
+
+        // If user types "1", mirror menu option 1 but go through the popup
+        if (value === "1") {
+          input.value = "";
+          runBenchmarkWorkflow();
+          return;
+        }
+
+        // If user types "4" manually, behave like clicking the button
+        if (value === "4") {
+          input.value = "";
+          restoreFromSpecificImage();
+          return;
+        }
+
+        sendRawToDevice(value + "\n");
         input.value = "";
-        // This will show the popup and then call /api/command identify,
-        runBenchmarkWorkflow();
-        return;
       }
+    });
+  }
 
-      // All other inputs are sent raw to the device
-      sendRawToDevice(value + "\n");
-      input.value = "";
-    }
-  });
-}
-
-
-
+  // Start log polling
   refreshLogs();
   setInterval(refreshLogs, 1000);
+
+  // On startup, ask Pico to show its main menu (like pressing "Return")
+  setTimeout(() => {
+    sendCommand("resume");
+  }, 500);
 }
-// Initialise handlers when the page has finished loading
+
+// Initialise handlers when DOM is ready
 document.addEventListener("DOMContentLoaded", setupHandlers);
