@@ -149,3 +149,14 @@ Located in the same project folder:
    cd build
    cmake ..          # configure for Pico
    cmake --build .   # or: ninja
+
+### 3.3 Run the web server
+1. In the terminal
+  ```powershell
+    .\.venv\Scripts\activate
+    python BridgeToPico.py
+
+2. In another terminal
+  ```powershell
+    python server.py
+
