@@ -319,6 +319,14 @@ static bool fs_mount_once(void) {
 }
 
 // ---- CRC32 (poly 0xEDB88320) ----
+// flips all bits before processing and flips them back at the end
+// c & 1 checks the least significant bit (LSB).
+// -(int)(c & 1) is a trick:
+// If LSB is 0 → (c & 1) = 0 → -(int)0 = 0
+// If LSB is 1 → (c & 1) = 1 → -(int)1 = -1 → all bits = 1 (0xFFFFFFFF)
+// 0xEDB88320u & -(int)(c & 1):
+// If LSB = 0 → AND with 0 → contributes 0
+// If LSB = 1 → AND with 0xFFFFFFFF → contributes 0xEDB88320
 static uint32_t crc32_update(uint32_t c, const uint8_t *b, size_t n) {
     c = ~c;
     for (size_t i = 0; i < n; ++i) {
@@ -424,6 +432,7 @@ static int backup_flash_to_sd(void) {
         if (by_jedec) flash_sz = by_jedec;
     }
 
+    //makes sure sd card is there
     ensure_folder();
     char stamp[32]; fmt_time(stamp, sizeof(stamp));
 
@@ -445,7 +454,7 @@ static int backup_flash_to_sd(void) {
     h.flash_size  = flash_sz;
     h.chunk_size  = CHUNK_BYTES;
     h.image_size  = flash_sz;
-    h.crc32_all   = 0;   // will backfill later
+    h.crc32_all   = 0;
 
     if (f_write(&fp, &h, sizeof(h), &bw) != FR_OK || bw != sizeof(h)) {
         f_close(&fp);
@@ -697,7 +706,7 @@ static int restore_flash_from_sd(const char *name) {
 
     // ----- Final CRC over live flash -----
     // compute CRC over live flash contents and compare with image CRC
-    // store in image header to confrim flash == image 
+    // store in image header to confirm flash == image 
     uint32_t crc_flash = 0;
     int crc_rc = crc32_over_flash(h.image_size, h.chunk_size, &crc_flash);
     if (crc_rc != 0) {
@@ -1246,6 +1255,7 @@ int main(void) {
         }
 
         case '2':
+            //backup files
             backup_flash_to_sd();
             break;
 
@@ -1284,6 +1294,7 @@ int main(void) {
         }
 
         case '5':
+            //list all files
             list_flash_images();
             break;
 
