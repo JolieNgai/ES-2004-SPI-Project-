@@ -1028,11 +1028,12 @@ static void run_main_workflow(uint8_t manf_id,
         // and keep the top N closest matches.
         for (int i = 0; i < chip_count; i++) {
             const ChipEntry *c = &chip_data[i];
-
+            
+            // Skip entries with missing timing data
             if (c->read_time_us <= 0.0f ||
                 c->write_time_ms <= 0.0f ||
                 c->erase_time_ms <= 0.0f) {
-                continue;
+                continue; //this row not compared
             }
 
             float sc = score_entry(c,
